@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "via.h"
-#include "m68k.h"
+#include "tme/musashi/m68k.h"
 
 void viaCbPortAWrite(unsigned int val);
 void viaCbPortBWrite(unsigned int val);

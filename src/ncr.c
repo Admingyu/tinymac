@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "ncr.h"
-#include "m68k.h"
+#include "tme/musashi/m68k.h"
 
 // static const char* const regNamesR[]={
 // 	"CURSCSIDATA","INITIATORCMD", "MODE", "TARGETCMD", "CURSCSISTATUS",
@@ -93,6 +93,13 @@ typedef struct {
 
 static Ncr ncr;
 
+/**
+ * @brief 解析 SCSI 命令
+ *
+ * 根据给定的读取/写入标志，解析 SCSI 命令，并处理命令中的 LBA、长度和控制信息。
+ *
+ * @param isRead 指示命令是读取操作还是写入操作的标志
+ */
 static void parseScsiCmd(int isRead) {
 	uint8_t *buf=ncr.data.cmd;
 	int cmd=buf[0];
@@ -121,6 +128,16 @@ static void parseScsiCmd(int isRead) {
 	}
 }
 
+/**
+ * @brief 从 NCR 读取数据
+ *
+ * 根据给定的地址和 DACK 状态，从 NCR 读取数据。
+ *
+ * @param addr 地址
+ * @param dack DACK 状态
+ *
+ * @return 读取到的数据
+ */
 unsigned int ncrRead(unsigned int addr, unsigned int dack) {
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
 	unsigned int ret=0;
@@ -184,6 +201,15 @@ unsigned int ncrRead(unsigned int addr, unsigned int dack) {
 }
 
 
+/**
+ * @brief 写入NCR寄存器
+ *
+ * 根据给定的地址、DACK信号和值，向NCR寄存器写入数据。
+ *
+ * @param addr 寄存器地址
+ * @param dack DACK信号
+ * @param val 要写入的值
+ */
 void ncrWrite(unsigned int addr, unsigned int dack, unsigned int val) {
 	unsigned int pc=m68k_get_reg(NULL, M68K_REG_PC);
 

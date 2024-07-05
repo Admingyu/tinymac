@@ -9,10 +9,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "scc.h"
-#include "m68k.h"
+#include "tme/musashi/m68k.h"
 #include "hexdump.h"
-// #include "network/localtalk.h"
-#include "localtalk.h"
+// updated remove network support
+// #include "localtalk.h"
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -323,7 +323,8 @@ void sccRecv(int chan, uint8_t *data, int len, int delay) {
 
 void sccTxFinished(int chan) {
 	hexdump(scc.chan[chan].txData, scc.chan[chan].txPos);
-	localtalkSend(scc.chan[chan].txData, scc.chan[chan].txPos);
+	// updated remove localtalkSend func
+	// localtalkSend(scc.chan[chan].txData, scc.chan[chan].txPos);
 	//Echo back data over Rx of same channel
 //	sccRecv(chan, scc.chan[chan].txData, scc.chan[chan].txPos, 0);
 //	triggerRx(chan);

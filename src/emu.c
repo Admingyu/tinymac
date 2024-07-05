@@ -17,8 +17,9 @@
 #include <sys/time.h>
 #include <string.h>
 #include "tmeconfig.h"
-#include "m68k.h"
-#include "disp.h"
+#include "tme/musashi/m68k.h"
+//updated to spi_lcd #include "disp.h"
+#include "spi_lcd.h"
 #include "iwm.h"
 #include "via.h"
 #include "scc.h"
@@ -29,11 +30,11 @@
 #include <stdbool.h>
 #include "esp_heap_caps.h"
 #include <byteswap.h>
-// #include "esp_spiram.h"
+// updated #include "esp_spiram.h"
 #include "esp_psram.h"
-// #include "network/localtalk.h"
-#include "localtalk.h"
-// updated
+// updated #include "network/localtalk.h"
+// # updated remove network support. include "localtalk.h"
+// updated optional i2s audio
 #if SOC_I2S_SUPPORTS_DAC
 	#include "snd.h"
 #endif
@@ -512,7 +513,7 @@ void tmeStartEmu(void *rom) {
 		sndInit();
 	#endif
 	dispInit();
-	localtalkInit();
+	// updated remove network related. localtalkInit();
 	printf("Done! Running.\n");
 	while(1) {
 		for (x=0; x<8000000/60; x+=1000) {

@@ -59,8 +59,9 @@ static int adnsRead(int adr) {
 }
 
 int adns9500_init() {
-	volatile int delay;
-	int t;
+	// updated unused t, unused variable 'delay'
+	// volatile int delay;
+	// int t;
 	gpio_config_t gpioconf[2]={
 		{
 			.pin_bit_mask=(1<<ADNS_MOSI)|(1<<ADNS_CS)|(1<<ADNS_CLK), 
