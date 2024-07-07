@@ -21,6 +21,7 @@
 #include "mpumouse.h"
 #include "mouse.h"
 #include "spi_lcd.h"
+#include "st7789v.h"
 // sda:41 sck:40 cs:39 dc:38
 #define PIN_NUM_MISO GPIO_NUM_NC
 #define PIN_NUM_MOSI GPIO_NUM_41
@@ -185,7 +186,8 @@ static void st7789_send_data(spi_device_handle_t spi, void *data, uint16_t lengt
 
 // ==========ST7789 END==========
 
-static spi_device_handle_t spi;
+// static spi_device_handle_t spi;
+TFT_t dev;
 
 // Send a command to the ILI9341. Uses spi_device_transmit, which waits until the transfer is complete.
 void ili_cmd(spi_device_handle_t spi, const uint8_t cmd)
@@ -333,33 +335,40 @@ void IRAM_ATTR displayTask(void *arg)
 	spi_transaction_t *rtrans;
 
 	esp_err_t ret;
-	spi_bus_config_t buscfg = {
-		.miso_io_num = PIN_NUM_MISO,
-		.mosi_io_num = PIN_NUM_MOSI,
-		.sclk_io_num = PIN_NUM_CLK,
-		.quadwp_io_num = GPIO_NUM_NC,
-		.quadhd_io_num = GPIO_NUM_NC,
-	};
-	spi_device_interface_config_t devcfg = {
-		.clock_speed_hz = 26000000,				 // Clock out at 40 MHz. Yes, that's heavily overclocked.
-		.mode = 0,								 // SPI mode 0
-		.spics_io_num = PIN_NUM_CS,				 // CS pin
-		.queue_size = 10,						 // We want to be able to queue 7 transactions at a time
-		.pre_cb = ili_spi_pre_transfer_callback, // Specify pre-transfer callback to handle D/C line
-	};
+	// spi_bus_config_t buscfg = {
+	// 	.miso_io_num = PIN_NUM_MISO,
+	// 	.mosi_io_num = PIN_NUM_MOSI,
+	// 	.sclk_io_num = PIN_NUM_CLK,
+	// 	.quadwp_io_num = GPIO_NUM_NC,
+	// 	.quadhd_io_num = GPIO_NUM_NC,
+	// };
+	// spi_device_interface_config_t devcfg = {
+	// 	.clock_speed_hz = 26000000,				 // Clock out at 40 MHz. Yes, that's heavily overclocked.
+	// 	.mode = 0,								 // SPI mode 0
+	// 	.spics_io_num = PIN_NUM_CS,				 // CS pin
+	// 	.queue_size = 10,						 // We want to be able to queue 7 transactions at a time
+	// 	.pre_cb = ili_spi_pre_transfer_callback, // Specify pre-transfer callback to handle D/C line
+	// };
 
-	printf("*** Display task starting.\n");
+	// printf("*** Display task starting.\n");
 
-	// Initialize the SPI bus
-	ret = spi_bus_initialize(CONFIG_SPI_HOST, &buscfg, DMA_CHAN);
-	assert(ret == ESP_OK);
-	// Attach the LCD to the SPI bus
-	ret = spi_bus_add_device(CONFIG_SPI_HOST, &devcfg, &spi);
-	assert(ret == ESP_OK);
-	// Initialize the LCD
-	//  ili_init(spi);
-	st7789_init(spi);
+	// // Initialize the SPI bus
+	// ret = spi_bus_initialize(CONFIG_SPI_HOST, &buscfg, DMA_CHAN);
+	// assert(ret == ESP_OK);
+	// // Attach the LCD to the SPI bus
+	// ret = spi_bus_add_device(CONFIG_SPI_HOST, &devcfg, &spi);
+	// assert(ret == ESP_OK);
+	// // Initialize the LCD
+	// //  ili_init(spi);
+	// st7789_init(spi);
 
+
+	spi_master_init(&dev, PIN_NUM_MOSI, PIN_NUM_CLK, PIN_NUM_CS, PIN_NUM_DC, PIN_NUM_RST, PIN_NUM_BCKL);
+	lcdInit(&dev, 320, 240, 0, 0);
+
+	lcdDrawLine(&dev, 0, 120, 240, 120, RED);
+
+	// start emu display data
 	for (x = 0; x < NO_SIM_TRANS; x++)
 	{
 		// updated
@@ -377,8 +386,8 @@ void IRAM_ATTR displayTask(void *arg)
 		xSemaphoreTake(dispSem, portMAX_DELAY);
 		uint8_t *myData = (uint8_t *)currFbPtr;
 
-		send_header_start(spi, 0, 0, 320, 240);
-		send_header_cleanup(spi);
+		send_header_start(dev._SPIHandle, 0, 0, 320, 240);
+		send_header_cleanup(dev._SPIHandle);
 		int xpos = 0;
 		for (x = 0; x < 320 * 240; x += MEM_PER_TRANS)
 		{
@@ -400,7 +409,7 @@ void IRAM_ATTR displayTask(void *arg)
 			trans[idx].length = MEM_PER_TRANS * 16;
 			trans[idx].user = (void *)1;
 			trans[idx].tx_buffer = dmamem[idx];
-			ret = spi_device_queue_trans(spi, &trans[idx], portMAX_DELAY);
+			ret = spi_device_queue_trans(dev._SPIHandle, &trans[idx], portMAX_DELAY);
 			assert(ret == ESP_OK);
 
 			idx++;
@@ -409,7 +418,7 @@ void IRAM_ATTR displayTask(void *arg)
 
 			if (inProgress == NO_SIM_TRANS - 1)
 			{
-				ret = spi_device_get_trans_result(spi, &rtrans, portMAX_DELAY);
+				ret = spi_device_get_trans_result(dev._SPIHandle, &rtrans, portMAX_DELAY);
 				assert(ret == ESP_OK);
 			}
 			else
@@ -419,7 +428,7 @@ void IRAM_ATTR displayTask(void *arg)
 		}
 		while (inProgress)
 		{
-			ret = spi_device_get_trans_result(spi, &rtrans, portMAX_DELAY);
+			ret = spi_device_get_trans_result(dev._SPIHandle, &rtrans, portMAX_DELAY);
 			assert(ret == ESP_OK);
 			inProgress--;
 		}

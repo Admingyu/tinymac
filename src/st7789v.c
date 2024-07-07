@@ -10,6 +10,7 @@
 #include "esp_log.h"
 
 #include "st7789v.h"
+#include "spi_lcd.h"
 
 #define TAG "ST7789"
 #define	_DEBUG_ 0
@@ -88,12 +89,12 @@ void spi_master_init(TFT_t * dev, int16_t GPIO_MOSI, int16_t GPIO_SCLK, int16_t 
 	ESP_LOGI(TAG, "GPIO_SCLK=%d",GPIO_SCLK);
 	spi_bus_config_t buscfg = {
 		.mosi_io_num = GPIO_MOSI,
-		.miso_io_num = -1,
+		.miso_io_num = GPIO_NUM_NC,
 		.sclk_io_num = GPIO_SCLK,
-		.quadwp_io_num = -1,
-		.quadhd_io_num = -1,
-		.max_transfer_sz = 0,
-		.flags = 0
+		.quadwp_io_num = GPIO_NUM_NC,
+		.quadhd_io_num = GPIO_NUM_NC,
+		// .max_transfer_sz = 0,
+		// .flags = 0
 	};
 
 	ret = spi_bus_initialize( LCD_HOST, &buscfg, SPI_DMA_CH_AUTO );
@@ -104,9 +105,10 @@ void spi_master_init(TFT_t * dev, int16_t GPIO_MOSI, int16_t GPIO_SCLK, int16_t 
 	memset(&devcfg, 0, sizeof(devcfg));
 	//devcfg.clock_speed_hz = SPI_Frequency;
 	devcfg.clock_speed_hz = clock_speed_hz;
-	devcfg.queue_size = 7;
-	//devcfg.mode = 2;
-	devcfg.mode = 3;
+	devcfg.queue_size = 10;
+	devcfg.mode = 0;
+	// devcfg.mode = 3;
+	devcfg.pre_cb = ili_spi_pre_transfer_callback;
 	devcfg.flags = SPI_DEVICE_NO_DUMMY;
 
 	if ( GPIO_CS >= 0 ) {
@@ -284,6 +286,30 @@ void lcdDisplayOff(TFT_t * dev) {
 // Display ON
 void lcdDisplayOn(TFT_t * dev) {
 	spi_master_write_command(dev, 0x29);	// Display on
+}
+
+// Draw pixel
+// x:X coordinate
+// y:Y coordinate
+// color:color
+void lcdDrawPixel(TFT_t * dev, uint16_t x, uint16_t y, uint16_t color){
+	if (x >= dev->_width) return;
+	if (y >= dev->_height) return;
+
+	if (dev->_use_frame_buffer) {
+		dev->_frame_buffer[y*dev->_width+x] = color;
+	} else {
+		uint16_t _x = x + dev->_offsetx;
+		uint16_t _y = y + dev->_offsety;
+
+		spi_master_write_command(dev, 0x2A);	// set column(x) address
+		spi_master_write_addr(dev, _x, _x);
+		spi_master_write_command(dev, 0x2B);	// set Page(y) address
+		spi_master_write_addr(dev, _y, _y);
+		spi_master_write_command(dev, 0x2C);	// Memory Write
+		//spi_master_write_data_word(dev, color);
+		spi_master_write_colors(dev, &color, 1);
+	}
 }
 
 // Draw line

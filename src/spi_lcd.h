@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "driver/spi_master.h"
 
 /*!< SPI host DMA Channel */
 #define DMA_CHAN	    SPI_DMA_CH_AUTO
@@ -7,3 +8,4 @@
 void dispInit();
 // void sdlDispAudioInit();
 void dispDraw(uint8_t *mem);
+void ili_spi_pre_transfer_callback(spi_transaction_t *t);
