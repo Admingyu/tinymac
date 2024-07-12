@@ -34,188 +34,10 @@
 
 #define CONFIG_SPI_HOST     SPI3_HOST
 
-// ======ST7789============================================================
-/**
- * @file ili9341.c
- *
- */
-
-/*********************
- *      INCLUDES
- *********************/
 #include "st7789.h"
-
-/*********************
- *      DEFINES
- *********************/
-
-/**********************
- *      TYPEDEFS
- **********************/
-
-/*The LCD needs a bunch of command/argument values to be initialized. They are stored in this struct. */
-typedef struct {
-    uint8_t cmd;
-    uint8_t data[16];
-    uint8_t databytes; //No of data in data; bit 7 = delay after set; 0xFF = end of cmds.
-} lcd_init_cmd_t;
-
-/**********************
- *  STATIC PROTOTYPES
- **********************/
-static void st7789_send_cmd(spi_device_handle_t spi, uint8_t cmd);
-static void st7789_send_data(spi_device_handle_t spi, void *data, uint16_t length);
-
-/**********************
- *  STATIC VARIABLES
- **********************/
-
-static volatile bool spi_trans_in_progress;
-/**********************
- *      MACROS
- **********************/
-
-/**********************
- *   GLOBAL FUNCTIONS
- **********************/
-
-void st7789_init(spi_device_handle_t spi)
-{
-	lcd_init_cmd_t st7789_init_cmds[]={
-		{0xCF, {0x00, 0x83, 0X30}, 3},
-		{0xED, {0x64, 0x03, 0X12, 0X81}, 4},
-		{0xE8, {0x85, 0x01, 0x79}, 3},
-		{0xCB, {0x39, 0x2C, 0x00, 0x34, 0x02}, 5},
-		{0xF7, {0x20}, 1},
-		{0xEA, {0x00, 0x00}, 2},
-		{0xC0, {0x26}, 1},			/*Power control*/
-		{0xC1, {0x11}, 1},			/*Power control */
-		{0xC5, {0x35, 0x3E}, 2},	/*VCOM control*/
-		{0xC7, {0xBE}, 1},			/*VCOM control*/
-		{0x36, {0x28}, 1},			/*Memory Access Control*/
-		{0x3A, {0x55}, 1},			/*Pixel Format Set*/
-		{0xB1, {0x00, 0x1B}, 2},
-		{0xF2, {0x08}, 1},
-		{0x26, {0x01}, 1},
-		{0xE0, {0x1F, 0x1A, 0x18, 0x0A, 0x0F, 0x06, 0x45, 0X87, 0x32, 0x0A, 0x07, 0x02, 0x07, 0x05, 0x00}, 15},
-		{0XE1, {0x00, 0x25, 0x27, 0x05, 0x10, 0x09, 0x3A, 0x78, 0x4D, 0x05, 0x18, 0x0D, 0x38, 0x3A, 0x1F}, 15},
-		{0x2A, {0x00, 0x00, 0x00, 0xEF}, 4},
-		{0x2B, {0x00, 0x00, 0x01, 0x3f}, 4},
-		{0x2C, {0}, 0},
-		{0xB7, {0x07}, 1},
-		{0xB6, {0x0A, 0x82, 0x27, 0x00}, 4},
-		{0x11, {0}, 0x80},
-		{0x29, {0}, 0x80},
-		{0, {0}, 0xff},
-	};
-
-	// Initialize non-SPI GPIOs
-	gpio_set_direction(ST7789_DC, GPIO_MODE_OUTPUT);
-	gpio_set_direction(ST7789_RST, GPIO_MODE_OUTPUT);
-	gpio_set_direction(ST7789_BCKL, GPIO_MODE_OUTPUT);
-
-	// Reset the display
-	gpio_set_level(ST7789_RST, 0);
-	vTaskDelay(100 / portTICK_PERIOD_MS);
-	gpio_set_level(ST7789_RST, 1);
-	vTaskDelay(100 / portTICK_PERIOD_MS);
-
-	printf("ST7789 initialization.\n");
-
-	// Send all the commands
-	uint16_t cmd = 0;
-	while (st7789_init_cmds[cmd].databytes != 0xff)
-	{
-		st7789_send_cmd(spi, st7789_init_cmds[cmd].cmd);
-		st7789_send_data(spi, st7789_init_cmds[cmd].data, st7789_init_cmds[cmd].databytes & 0x1F);
-		if (st7789_init_cmds[cmd].databytes & 0x80)
-		{
-			vTaskDelay(100 / portTICK_PERIOD_MS);
-		}
-		cmd++;
-	}
-
-	/// Enable backlight
-	printf("Enable backlight.\n");
-	gpio_set_level(ST7789_BCKL, CONFIG_DISP_BCKL_ACTIVE_LVL);
-}
-
-static void lcd_reset(void)
-{
-	gpio_set_level(ST7789_RST, 0);
-	vTaskDelay(pdMS_TO_TICKS(2));
-	gpio_set_level(ST7789_RST, 1);
-	vTaskDelay(pdMS_TO_TICKS(2));
-}
-
-/**
- * @brief 发送SPI数据
- * @param data 数据指针，指向要发送的数据
- * @param length 数据长度，以字节为单位
- */
-void disp_spi_send_data(spi_device_handle_t spi, uint8_t *data, uint16_t length)
-{
-	if (length == 0){
-		return; // no need to send anything
-	}
-
-	while (spi_trans_in_progress){
-		
-	};
-
-	spi_transaction_t t = {
-		.length = length * 8, // transaction length is in bits
-		.tx_buffer = data};
-
-	spi_trans_in_progress = true;
-	// spi_color_sent = false;             //Mark the "lv_flush_ready" NOT needs to be called in "spi_ready"
-	spi_device_queue_trans(spi, &t, portMAX_DELAY);
-}
-
-static void st7789_send_cmd(spi_device_handle_t spi, uint8_t cmd)
-{
-	gpio_set_level(ST7789_DC, 0); /*Command mode*/
-	disp_spi_send_data(spi, &cmd, 1);
-}
-
-static void st7789_send_data(spi_device_handle_t spi, void *data, uint16_t length)
-{
-	gpio_set_level(ST7789_DC, 1); /*Data mode*/
-	disp_spi_send_data(spi, data, length);
-}
-
-// ==========ST7789 END==========
 
 // static spi_device_handle_t spi;
 TFT_t dev;
-
-// Send a command to the ILI9341. Uses spi_device_transmit, which waits until the transfer is complete.
-void ili_cmd(spi_device_handle_t spi, const uint8_t cmd)
-{
-	esp_err_t ret;
-	spi_transaction_t t;
-	memset(&t, 0, sizeof(t));			// Zero out the transaction
-	t.length = 8;						// Command is 8 bits
-	t.tx_buffer = &cmd;					// The data is the cmd itself
-	t.user = (void *)0;					// D/C needs to be set to 0
-	ret = spi_device_transmit(spi, &t); // Transmit!
-	assert(ret == ESP_OK);				// Should have had no issues.
-}
-
-// Send data to the ILI9341. Uses spi_device_transmit, which waits until the transfer is complete.
-void ili_data(spi_device_handle_t spi, const uint8_t *data, int len)
-{
-	esp_err_t ret;
-	spi_transaction_t t;
-	if (len == 0)
-		return;							// no need to send anything
-	memset(&t, 0, sizeof(t));			// Zero out the transaction
-	t.length = len * 8;					// Len is in bytes, transaction length is in bits.
-	t.tx_buffer = data;					// Data
-	t.user = (void *)1;					// D/C needs to be set to 1
-	ret = spi_device_transmit(spi, &t); // Transmit!
-	assert(ret == ESP_OK);				// Should have had no issues.
-}
 
 // This function is called (in irq context!) just before a transmission starts. It will
 // set the D/C line to the value indicated in the user field.
@@ -225,35 +47,17 @@ void ili_spi_pre_transfer_callback(spi_transaction_t *t)
 	gpio_set_level(PIN_NUM_DC, dc);
 }
 
-// Initialize the display
-//  void ili_init(spi_device_handle_t spi)
-//  {
-//      int cmd=0;
-//      //Initialize non-SPI GPIOs
-//      gpio_set_direction(PIN_NUM_DC, GPIO_MODE_OUTPUT);
-//      gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
-//      gpio_set_direction(PIN_NUM_BCKL, GPIO_MODE_OUTPUT);
-
-//     //Reset the display
-//     gpio_set_level(PIN_NUM_RST, 0);
-//     vTaskDelay(100 / portTICK_PERIOD_MS);
-//     gpio_set_level(PIN_NUM_RST, 1);
-//     vTaskDelay(100 / portTICK_PERIOD_MS);
-
-//     //Send all the commands
-//     while (ili_init_cmds[cmd].databytes!=0xff) {
-//         ili_cmd(spi, ili_init_cmds[cmd].cmd);
-//         ili_data(spi, ili_init_cmds[cmd].data, ili_init_cmds[cmd].databytes&0x1F);
-//         if (ili_init_cmds[cmd].databytes&0x80) {
-//             vTaskDelay(100 / portTICK_PERIOD_MS);
-//         }
-//         cmd++;
-//     }
-
-//     ///Enable backlight
-//     gpio_set_level(PIN_NUM_BCKL, 0);
-// }
-
+/**
+ * @brief 发送屏幕头信息开始
+ *
+ * 发送屏幕头信息开始，设置屏幕显示的起始位置、宽度和高度。
+ *
+ * @param spi SPI 设备句柄
+ * @param xpos 屏幕显示起始 X 坐标
+ * @param ypos 屏幕显示起始 Y 坐标
+ * @param w 屏幕显示宽度
+ * @param h 屏幕显示高度
+ */
 static void send_header_start(spi_device_handle_t spi, int xpos, int ypos, int w, int h)
 {
 	esp_err_t ret;
@@ -283,7 +87,7 @@ static void send_header_start(spi_device_handle_t spi, int xpos, int ypos, int w
 	}
 	trans[0].tx_data[0] = 0x2A;					 // Column Address Set
 	trans[1].tx_data[0] = xpos >> 8;			 // Start Col High
-	trans[1].tx_data[1] = xpos;					 // Start Col Low
+	trans[1].tx_data[1] = xpos & 0xff;					 // Start Col Low
 	trans[1].tx_data[2] = (xpos + w - 1) >> 8;	 // End Col High
 	trans[1].tx_data[3] = (xpos + w - 1) & 0xff; // End Col Low
 	trans[2].tx_data[0] = 0x2B;					 // Page address set
@@ -306,6 +110,13 @@ static void send_header_start(spi_device_handle_t spi, int xpos, int ypos, int w
 	// send_line_finish, which will wait for the transfers to be done and check their status.
 }
 
+/**
+ * @brief 发送头清理
+ *
+ * 清理 SPI 设备发送的头部数据。
+ *
+ * @param spi SPI 设备句柄
+ */
 void send_header_cleanup(spi_device_handle_t spi)
 {
 	spi_transaction_t *rtrans;
@@ -320,10 +131,10 @@ void send_header_cleanup(spi_device_handle_t spi)
 }
 
 volatile static uint8_t *currFbPtr = NULL;
-SemaphoreHandle_t dispSem = NULL;
+SemaphoreHandle_t dispSem = NULL; //  显示信号量(二进制)，用于控制显示，释放时调用xSemaphoreGive，创建时调用xSemaphoreCreateBinary
 
-#define NO_SIM_TRANS 5
-#define MEM_PER_TRANS 1024
+#define NO_SIM_TRANS 5 // 用来确定分配多少内存块，同时进行的最大SPI传输数量
+#define MEM_PER_TRANS 1024 // 每次传输的数据量
 
 void IRAM_ATTR displayTask(void *arg)
 {
@@ -333,34 +144,7 @@ void IRAM_ATTR displayTask(void *arg)
 	static uint16_t *dmamem[NO_SIM_TRANS];
 	spi_transaction_t trans[NO_SIM_TRANS];
 	spi_transaction_t *rtrans;
-
 	esp_err_t ret;
-	// spi_bus_config_t buscfg = {
-	// 	.miso_io_num = PIN_NUM_MISO,
-	// 	.mosi_io_num = PIN_NUM_MOSI,
-	// 	.sclk_io_num = PIN_NUM_CLK,
-	// 	.quadwp_io_num = GPIO_NUM_NC,
-	// 	.quadhd_io_num = GPIO_NUM_NC,
-	// };
-	// spi_device_interface_config_t devcfg = {
-	// 	.clock_speed_hz = 26000000,				 // Clock out at 40 MHz. Yes, that's heavily overclocked.
-	// 	.mode = 0,								 // SPI mode 0
-	// 	.spics_io_num = PIN_NUM_CS,				 // CS pin
-	// 	.queue_size = 10,						 // We want to be able to queue 7 transactions at a time
-	// 	.pre_cb = ili_spi_pre_transfer_callback, // Specify pre-transfer callback to handle D/C line
-	// };
-
-	// printf("*** Display task starting.\n");
-
-	// // Initialize the SPI bus
-	// ret = spi_bus_initialize(CONFIG_SPI_HOST, &buscfg, DMA_CHAN);
-	// assert(ret == ESP_OK);
-	// // Attach the LCD to the SPI bus
-	// ret = spi_bus_add_device(CONFIG_SPI_HOST, &devcfg, &spi);
-	// assert(ret == ESP_OK);
-	// // Initialize the LCD
-	// //  ili_init(spi);
-	// st7789_init(spi);
 
 
 	spi_master_init(&dev, PIN_NUM_MOSI, PIN_NUM_CLK, PIN_NUM_CS, PIN_NUM_DC, PIN_NUM_RST, PIN_NUM_BCKL);
@@ -373,42 +157,45 @@ void IRAM_ATTR displayTask(void *arg)
 	{
 		// updated
 		// dmamem[x]=pvPortMallocCaps(MEM_PER_TRANS*2, MALLOC_CAP_DMA);
-		dmamem[x] = heap_caps_malloc(MEM_PER_TRANS * 2, MALLOC_CAP_DMA);
+		// 为每个传输块分配内存，使用heap_caps_malloc函数，该函数确保内存分配适用于DMA传输。
+		dmamem[x] = heap_caps_malloc(MEM_PER_TRANS * 2, MALLOC_CAP_DMA); // TODO：请搜索heap_caps_malloc这个函数，看下是不是应该在lcdInit里面CONFIG_FRAME_BUFFER实现的
 		assert(dmamem[x]);
-		memset(&trans[x], 0, sizeof(spi_transaction_t));
+		memset(&trans[x], 0, sizeof(spi_transaction_t)); // 将传输描述符初始化为0。
 		trans[x].length = MEM_PER_TRANS * 4;
 		trans[x].user = (void *)1;
-		trans[x].tx_buffer = &dmamem[x];
+		trans[x].tx_buffer = &dmamem[x]; // 将传输缓冲区设置为分配的内存块。
 	}
 
 	while (1)
 	{
-		xSemaphoreTake(dispSem, portMAX_DELAY);
+		xSemaphoreTake(dispSem, portMAX_DELAY); // 拿到显示信号量
 		uint8_t *myData = (uint8_t *)currFbPtr;
 
-		send_header_start(dev._SPIHandle, 0, 0, 320, 240);
-		send_header_cleanup(dev._SPIHandle);
+		send_header_start(dev._SPIHandle, 0, 0, 320, 240); // TODO：这是不是属于lcdInit已经做过的？
+		send_header_cleanup(dev._SPIHandle); // TODO：这是不是属于lcdInit已经做过的？
 		int xpos = 0;
 		for (x = 0; x < 320 * 240; x += MEM_PER_TRANS)
 		{
 			i = 0;
+			// 将屏幕数据从myData加载到dmamem[idx]，将每个字节转换为16位颜色值。这部分内容主要是组装dmamem[idx]数据
 			while (i < MEM_PER_TRANS)
 			{
+				// 内部的for循环for (int j = 0x80; j != 0; j >>= 1)：逐位处理字节数据，如果该位为1，则对应的像素为黑色（0），否则为白色（0xffff）。
 				for (int j = 0x80; j != 0; j >>= 1)
 				{
 					dmamem[idx][i++] = (*myData & j) ? 0 : 0xffff;
 				}
 				myData++;
-				xpos += 8;
+				xpos += 8; // 更新当前行的像素位置。
 				if (xpos >= 320)
 				{
 					xpos = 0;
 					myData += ((512 - 320) / 8);
 				}
 			}
-			trans[idx].length = MEM_PER_TRANS * 16;
+			trans[idx].length = MEM_PER_TRANS * 16; // 设置传输长度为MEM_PER_TRANS个像素的16位颜色值。
 			trans[idx].user = (void *)1;
-			trans[idx].tx_buffer = dmamem[idx];
+			trans[idx].tx_buffer = dmamem[idx]; // 将传输缓冲区设置为当前的DMA内存块
 			ret = spi_device_queue_trans(dev._SPIHandle, &trans[idx], portMAX_DELAY);
 			assert(ret == ESP_OK);
 
@@ -435,18 +222,36 @@ void IRAM_ATTR displayTask(void *arg)
 	}
 }
 
+/**
+ * @brief 绘制显示
+ *
+ * 将指定的内存地址中的数据绘制到显示屏上，并处理鼠标移动事件。
+ *
+ * @param mem 内存地址指针，指向要绘制的数据
+ */
 void dispDraw(uint8_t *mem)
 {
 	int dx, dy, btn;
 	currFbPtr = mem;
+	// 释放信号量，触发显示任务
 	xSemaphoreGive(dispSem);
+	// 获取鼠标移动信息
 	mpuMouseGetDxDyBtn(&dx, &dy, &btn);
 	mouseMove(dx, dy, btn);
 }
 
+/**
+ * @brief 初始化显示函数
+ *
+ * 初始化显示相关的设置和资源，包括创建信号量和创建显示任务。
+ *
+ * @note 在多核环境中，使用 CONFIG_FREERTOS_UNICORE 宏来决定是否将显示任务绑定到核心 0。
+ *       在非多核环境中，显示任务默认绑定到核心 1。
+ */
 void dispInit()
 {
 	printf("spi_lcd_init()\n");
+	// 创建二进制信号量，用于控制显示任务和主任务之间的同步
 	dispSem = xSemaphoreCreateBinary();
 #if CONFIG_FREERTOS_UNICORE
 	xTaskCreatePinnedToCore(&displayTask, "display", 3000, NULL, 6, NULL, 0);
