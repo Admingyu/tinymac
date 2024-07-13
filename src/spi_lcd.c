@@ -87,7 +87,7 @@ static void send_header_start(spi_device_handle_t spi, int xpos, int ypos, int w
 	}
 	trans[0].tx_data[0] = 0x2A;					 // Column Address Set
 	trans[1].tx_data[0] = xpos >> 8;			 // Start Col High
-	trans[1].tx_data[1] = xpos;					 // Start Col Low
+	trans[1].tx_data[1] = xpos & 0xff;					 // Start Col Low
 	trans[1].tx_data[2] = (xpos + w - 1) >> 8;	 // End Col High
 	trans[1].tx_data[3] = (xpos + w - 1) & 0xff; // End Col Low
 	trans[2].tx_data[0] = 0x2B;					 // Page address set
@@ -133,8 +133,8 @@ void send_header_cleanup(spi_device_handle_t spi)
 volatile static uint8_t *currFbPtr = NULL;
 SemaphoreHandle_t dispSem = NULL; //  显示信号量(二进制)，用于控制显示，释放时调用xSemaphoreGive，创建时调用xSemaphoreCreateBinary
 
-#define NO_SIM_TRANS 5
-#define MEM_PER_TRANS 1024
+#define NO_SIM_TRANS 5 // 用来确定分配多少内存块，同时进行的最大SPI传输数量
+#define MEM_PER_TRANS 1024 // 每次传输的数据量
 
 void IRAM_ATTR displayTask(void *arg)
 {
@@ -157,12 +157,13 @@ void IRAM_ATTR displayTask(void *arg)
 	{
 		// updated
 		// dmamem[x]=pvPortMallocCaps(MEM_PER_TRANS*2, MALLOC_CAP_DMA);
+		// 为每个传输块分配内存，使用heap_caps_malloc函数，该函数确保内存分配适用于DMA传输。
 		dmamem[x] = heap_caps_malloc(MEM_PER_TRANS * 2, MALLOC_CAP_DMA); // TODO：请搜索heap_caps_malloc这个函数，看下是不是应该在lcdInit里面CONFIG_FRAME_BUFFER实现的
 		assert(dmamem[x]);
-		memset(&trans[x], 0, sizeof(spi_transaction_t));
+		memset(&trans[x], 0, sizeof(spi_transaction_t)); // 将传输描述符初始化为0。
 		trans[x].length = MEM_PER_TRANS * 4;
 		trans[x].user = (void *)1;
-		trans[x].tx_buffer = &dmamem[x];
+		trans[x].tx_buffer = &dmamem[x]; // 将传输缓冲区设置为分配的内存块。
 	}
 
 	while (1)
@@ -176,23 +177,25 @@ void IRAM_ATTR displayTask(void *arg)
 		for (x = 0; x < 320 * 240; x += MEM_PER_TRANS)
 		{
 			i = 0;
+			// 将屏幕数据从myData加载到dmamem[idx]，将每个字节转换为16位颜色值。这部分内容主要是组装dmamem[idx]数据
 			while (i < MEM_PER_TRANS)
 			{
+				// 内部的for循环for (int j = 0x80; j != 0; j >>= 1)：逐位处理字节数据，如果该位为1，则对应的像素为黑色（0），否则为白色（0xffff）。
 				for (int j = 0x80; j != 0; j >>= 1)
 				{
 					dmamem[idx][i++] = (*myData & j) ? 0 : 0xffff;
 				}
 				myData++;
-				xpos += 8;
+				xpos += 8; // 更新当前行的像素位置。
 				if (xpos >= 320)
 				{
 					xpos = 0;
 					myData += ((512 - 320) / 8);
 				}
 			}
-			trans[idx].length = MEM_PER_TRANS * 16;
+			trans[idx].length = MEM_PER_TRANS * 16; // 设置传输长度为MEM_PER_TRANS个像素的16位颜色值。
 			trans[idx].user = (void *)1;
-			trans[idx].tx_buffer = dmamem[idx];
+			trans[idx].tx_buffer = dmamem[idx]; // 将传输缓冲区设置为当前的DMA内存块
 			ret = spi_device_queue_trans(dev._SPIHandle, &trans[idx], portMAX_DELAY);
 			assert(ret == ESP_OK);
 
