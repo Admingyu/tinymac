@@ -20,24 +20,12 @@
 #include "esp_heap_caps.h"
 #include "mpumouse.h"
 #include "mouse.h"
+#include "lcd.h"
 #include "spi_lcd.h"
-#include "st7789v.h"
-// sda:41 sck:40 cs:39 dc:38
-#define PIN_NUM_MISO GPIO_NUM_NC
-#define PIN_NUM_MOSI GPIO_NUM_41
-#define PIN_NUM_CLK GPIO_NUM_40
-#define PIN_NUM_CS GPIO_NUM_39
 
-#define PIN_NUM_DC ST7789_DC	 // 38
-#define PIN_NUM_RST ST7789_RST	 // 0
-#define PIN_NUM_BCKL ST7789_BCKL // 45		//backlight enable
-
-#define CONFIG_SPI_HOST     SPI3_HOST
-
-#include "st7789.h"
+static spi_device_handle_t spi;
 
 // static spi_device_handle_t spi;
-TFT_t dev;
 int lcd_h = 280;
 int lcd_w = 240;
 
@@ -148,11 +136,8 @@ void IRAM_ATTR displayTask(void *arg)
 	spi_transaction_t *rtrans;
 	esp_err_t ret;
 
-
-	spi_master_init(&dev, PIN_NUM_MOSI, PIN_NUM_CLK, PIN_NUM_CS, PIN_NUM_DC, PIN_NUM_RST, PIN_NUM_BCKL);
-	lcdInit(&dev, lcd_w, lcd_h, 0, 0);
-
-	lcdDrawLine(&dev, 0, 0, lcd_w, lcd_h, RED);
+	printf("*** Display task starting.\n");
+	lcd_init(&spi, 26000000);
 
 	// start emu display data
 	for (x = 0; x < NO_SIM_TRANS; x++)
