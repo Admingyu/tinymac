@@ -23,7 +23,7 @@
 #include "lcd.h"
 #include "spi_lcd.h"
 
-static spi_device_handle_t spi;
+static spi_device_handle_t spi_handle;
 
 // static spi_device_handle_t spi;
 int lcd_h = 280;
@@ -135,9 +135,8 @@ void IRAM_ATTR displayTask(void *arg)
 	spi_transaction_t trans[NO_SIM_TRANS];
 	spi_transaction_t *rtrans;
 	esp_err_t ret;
-
 	printf("*** Display task starting.\n");
-	lcd_init(&spi, 26000000);
+	lcd_init(CONFIG_SPI_HOST, 26000000);
 
 	// start emu display data
 	for (x = 0; x < NO_SIM_TRANS; x++)
@@ -158,8 +157,8 @@ void IRAM_ATTR displayTask(void *arg)
 		xSemaphoreTake(dispSem, portMAX_DELAY); // 拿到显示信号量
 		uint8_t *myData = (uint8_t *)currFbPtr;
 
-		send_header_start(dev._SPIHandle, 0, 0, lcd_w, lcd_h); // TODO：这是不是属于lcdInit已经做过的？
-		send_header_cleanup(dev._SPIHandle); // TODO：这是不是属于lcdInit已经做过的？
+		send_header_start(spi_handle, 0, 0, lcd_w, lcd_h); // TODO：这是不是属于lcdInit已经做过的？
+		send_header_cleanup(spi_handle); // TODO：这是不是属于lcdInit已经做过的？
 		int xpos = 0;
 		for (x = 0; x < lcd_w * lcd_h; x += MEM_PER_TRANS)
 		{
@@ -183,7 +182,7 @@ void IRAM_ATTR displayTask(void *arg)
 			trans[idx].length = MEM_PER_TRANS * 16; // 设置传输长度为MEM_PER_TRANS个像素的16位颜色值。
 			trans[idx].user = (void *)1;
 			trans[idx].tx_buffer = dmamem[idx]; // 将传输缓冲区设置为当前的DMA内存块
-			ret = spi_device_queue_trans(dev._SPIHandle, &trans[idx], portMAX_DELAY);
+			ret = spi_device_queue_trans(spi_handle, &trans[idx], portMAX_DELAY);
 			assert(ret == ESP_OK);
 
 			idx++;
@@ -192,7 +191,7 @@ void IRAM_ATTR displayTask(void *arg)
 
 			if (inProgress == NO_SIM_TRANS - 1)
 			{
-				ret = spi_device_get_trans_result(dev._SPIHandle, &rtrans, portMAX_DELAY);
+				ret = spi_device_get_trans_result(spi_handle, &rtrans, portMAX_DELAY);
 				assert(ret == ESP_OK);
 			}
 			else
@@ -202,7 +201,7 @@ void IRAM_ATTR displayTask(void *arg)
 		}
 		while (inProgress)
 		{
-			ret = spi_device_get_trans_result(dev._SPIHandle, &rtrans, portMAX_DELAY);
+			ret = spi_device_get_trans_result(spi_handle, &rtrans, portMAX_DELAY);
 			assert(ret == ESP_OK);
 			inProgress--;
 		}
