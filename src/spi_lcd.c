@@ -148,9 +148,9 @@ void IRAM_ATTR displayTask(void *arg)
 
 
 	spi_master_init(&dev, PIN_NUM_MOSI, PIN_NUM_CLK, PIN_NUM_CS, PIN_NUM_DC, PIN_NUM_RST, PIN_NUM_BCKL);
-	lcdInit(&dev, LCD_W, 240, 0, 0);
+	lcdInit(&dev, LCD_W, LCD_H, 0, 0);
 
-	lcdDrawLine(&dev, 0, 120, 240, 120, RED);
+	lcdDrawLine(&dev, 0, 120, LCD_H, 120, RED);
 
 	// start emu display data
 	for (x = 0; x < NO_SIM_TRANS; x++)
@@ -171,10 +171,10 @@ void IRAM_ATTR displayTask(void *arg)
 		xSemaphoreTake(dispSem, portMAX_DELAY); // 拿到显示信号量
 		uint8_t *myData = (uint8_t *)currFbPtr;
 
-		send_header_start(dev._SPIHandle, 0, 0, LCD_W, 240); // TODO：这是不是属于lcdInit已经做过的？
+		send_header_start(dev._SPIHandle, 0, 0, LCD_W, LCD_H); // TODO：这是不是属于lcdInit已经做过的？
 		send_header_cleanup(dev._SPIHandle); // TODO：这是不是属于lcdInit已经做过的？
 		int xpos = 0;
-		for (x = 0; x < LCD_W * 240; x += MEM_PER_TRANS)
+		for (x = 0; x < LCD_W * LCD_H; x += MEM_PER_TRANS)
 		{
 			i = 0;
 			// 将屏幕数据从myData加载到dmamem[idx]，将每个字节转换为16位颜色值。这部分内容主要是组装dmamem[idx]数据
