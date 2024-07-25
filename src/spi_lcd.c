@@ -38,8 +38,6 @@
 
 // static spi_device_handle_t spi;
 TFT_t dev;
-int lcd_h = 280;
-int lcd_w = 240;
 
 // This function is called (in irq context!) just before a transmission starts. It will
 // set the D/C line to the value indicated in the user field.
@@ -150,9 +148,9 @@ void IRAM_ATTR displayTask(void *arg)
 
 
 	spi_master_init(&dev, PIN_NUM_MOSI, PIN_NUM_CLK, PIN_NUM_CS, PIN_NUM_DC, PIN_NUM_RST, PIN_NUM_BCKL);
-	lcdInit(&dev, lcd_w, lcd_h, 0, 0);
+	lcdInit(&dev, LCD_W, 240, 0, 0);
 
-	lcdDrawLine(&dev, 0, 0, lcd_w, lcd_h, RED);
+	lcdDrawLine(&dev, 0, 120, 240, 120, RED);
 
 	// start emu display data
 	for (x = 0; x < NO_SIM_TRANS; x++)
@@ -173,10 +171,10 @@ void IRAM_ATTR displayTask(void *arg)
 		xSemaphoreTake(dispSem, portMAX_DELAY); // 拿到显示信号量
 		uint8_t *myData = (uint8_t *)currFbPtr;
 
-		send_header_start(dev._SPIHandle, 0, 0, lcd_w, lcd_h); // TODO：这是不是属于lcdInit已经做过的？
+		send_header_start(dev._SPIHandle, 0, 0, LCD_W, 240); // TODO：这是不是属于lcdInit已经做过的？
 		send_header_cleanup(dev._SPIHandle); // TODO：这是不是属于lcdInit已经做过的？
 		int xpos = 0;
-		for (x = 0; x < lcd_w * lcd_h; x += MEM_PER_TRANS)
+		for (x = 0; x < LCD_W * 240; x += MEM_PER_TRANS)
 		{
 			i = 0;
 			// 将屏幕数据从myData加载到dmamem[idx]，将每个字节转换为16位颜色值。这部分内容主要是组装dmamem[idx]数据
@@ -189,10 +187,10 @@ void IRAM_ATTR displayTask(void *arg)
 				}
 				myData++;
 				xpos += 8; // 更新当前行的像素位置。
-				if (xpos >= 320)
+				if (xpos >= LCD_W)
 				{
 					xpos = 0;
-					myData += ((512 - lcd_w) / 8);
+					myData += ((512 - LCD_W) / 8);
 				}
 			}
 			trans[idx].length = MEM_PER_TRANS * 16; // 设置传输长度为MEM_PER_TRANS个像素的16位颜色值。
