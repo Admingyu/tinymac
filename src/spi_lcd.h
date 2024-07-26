@@ -22,6 +22,9 @@
 
 #define CONFIG_SPI_HOST     SPI3_HOST
 
+#define LCD_H 240
+#define LCD_W 320
+
 void dispInit();
 // void sdlDispAudioInit();
 void dispDraw(uint8_t *mem);
